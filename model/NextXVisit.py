@@ -16,7 +16,8 @@ class BertEmbeddings(nn.Module):
                 'word': True,
                 'seg': True,
                 'age': True,
-                'position': True
+                'position': True,
+                'patient': True,
             }
         else:
             self.feature_dict = feature_dict
@@ -29,6 +30,9 @@ class BertEmbeddings(nn.Module):
 
         if feature_dict['age']:
             self.age_embeddings = nn.Embedding(config.age_vocab_size, config.hidden_size)
+            
+        if feature_dict['patient']:
+            self.patient_embeddings = nn.Embedding(config.patient_vocab_size, config.hidden_size)
 
         if feature_dict['position']:
             self.posi_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size). \
@@ -37,7 +41,7 @@ class BertEmbeddings(nn.Module):
         self.LayerNorm = Bert.modeling.BertLayerNorm(config.hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, word_ids, age_ids, seg_ids, posi_ids):
+    def forward(self, word_ids, age_ids, seg_ids, posi_ids, patient_ids):
         embeddings = self.word_embeddings(word_ids)
 
         if self.feature_dict['seg']:
@@ -51,6 +55,10 @@ class BertEmbeddings(nn.Module):
         if self.feature_dict['position']:
             posi_embeddings = self.posi_embeddings(posi_ids)
             embeddings = embeddings + posi_embeddings
+        
+        if self.feature_dict['patient']:
+            patient_embeddings = self.patient_embeddings(patient_ids)
+            embeddings = embeddings + patient_embeddings
 
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
@@ -87,7 +95,7 @@ class BertModel(Bert.modeling.BertPreTrainedModel):
         self.pooler = Bert.modeling.BertPooler(config)
         self.apply(self.init_bert_weights)
 
-    def forward(self, input_ids, age_ids, seg_ids, posi_ids, attention_mask,
+    def forward(self, input_ids, age_ids, seg_ids, posi_ids, patient_ids, attention_mask,
                 output_all_encoded_layers=True):
 
         # We create a 3D attention mask from a 2D tensor mask.
@@ -125,8 +133,8 @@ class BertForMultiLabelPrediction(Bert.modeling.BertPreTrainedModel):
         self.classifier = nn.Linear(config.hidden_size, num_labels)
         self.apply(self.init_bert_weights)
 
-    def forward(self, input_ids, age_ids=None, seg_ids=None, posi_ids=None, attention_mask=None, labels=None):
-        _, pooled_output = self.bert(input_ids, age_ids, seg_ids, posi_ids, attention_mask,
+    def forward(self, input_ids, age_ids=None, seg_ids=None, posi_ids=None, patient_ids=None, attention_mask=None, labels=None):
+        _, pooled_output = self.bert(input_ids, age_ids, seg_ids, posi_ids, patient_ids, attention_mask,
                                      output_all_encoded_layers=False)
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
